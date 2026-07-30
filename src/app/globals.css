@@ -237,3 +237,12 @@
       all 250ms ease;
   }
 }
+
+/* Premium Window Glow */
+
+.window-glow {
+  box-shadow:
+    0 0 20px rgba(56, 189, 248, 0.08),
+    0 0 60px rgba(56, 189, 248, 0.12),
+    0 30px 80px rgba(0, 0, 0, 0.45);
+}
