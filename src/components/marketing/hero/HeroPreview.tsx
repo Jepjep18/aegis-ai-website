@@ -38,16 +38,17 @@ export default function HeroPreview() {
                     ease: "easeInOut",
                 }}
                 className="
-overflow-hidden
-rounded-[22px]
-lg:rounded-[28px]
-border
-border-white/10
-bg-[#101b2d]/80
-shadow-[0_20px_60px_rgba(0,0,0,.35)]
-lg:shadow-[0_25px_80px_rgba(0,0,0,.35)]
-backdrop-blur-xl
-"            >
+                overflow-hidden
+                rounded-[22px]
+                lg:rounded-[28px]
+                border
+                border-white/10
+                bg-[#101b2d]/80
+                shadow-[0_20px_60px_rgba(0,0,0,.35)]
+                lg:shadow-[0_25px_80px_rgba(0,0,0,.35)]
+                backdrop-blur-xl
+                "
+            >
                 {/* Browser Header */}
 
                 <div className="flex h-12 items-center justify-between border-b border-white/5 px-5">
@@ -66,17 +67,17 @@ backdrop-blur-xl
                 {/* Body */}
 
                 <div className="
-grid
-gap-4
-p-4
+                grid
+                gap-4
+                p-4
 
-md:grid-cols-[1.5fr_1fr]
+                md:grid-cols-[1.5fr_1fr]
 
-xl:grid-cols-[1.65fr_.95fr]
+                xl:grid-cols-[1.65fr_.95fr]
 
-xl:gap-5
-xl:p-5
-">
+                xl:gap-5
+                xl:p-5
+                ">
                     {/* LEFT COLUMN */}
 
                     <div className="flex flex-col gap-4">
