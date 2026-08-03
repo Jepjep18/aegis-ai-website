@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import Logo from "./Logo";
 import DesktopNav from "./DesktopNav";
@@ -10,6 +11,9 @@ import MobileNav from "./MobileNav";
 import { Button } from "@/components/ui/button";
 
 export default function Navbar() {
+
+    const router = useRouter();
+    
     return (
         <motion.header
             initial={{
@@ -32,7 +36,7 @@ export default function Navbar() {
                 <div className="hidden items-center gap-3 lg:flex">
                     <Button
                         variant="ghost"
-                        className="rounded-xl"
+                        onClick={() => router.push("/sign-in")}
                     >
                         Sign In
                     </Button>
