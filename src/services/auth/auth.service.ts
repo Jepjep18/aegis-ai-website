@@ -1,31 +1,43 @@
-import { supabase } from "@/lib/supabase";
+import {
+  authRepository,
+  SignInDto,
+  SignUpDto,
+} from "./auth.repository";
 
-export const authService = {
-  signIn: async (
-    email: string,
-    password: string
-  ) => {
-    return await supabase.auth.signInWithPassword({
+class AuthService {
+  async signUp(data: SignUpDto) {
+    const email = data.email.trim().toLowerCase();
+
+    return authRepository.signUp({
+      ...data,
       email,
-      password,
     });
-  },
+  }
 
-  signUp: async (
-    email: string,
-    password: string
-  ) => {
-    return await supabase.auth.signUp({
+  async signIn(data: SignInDto) {
+    const email = data.email.trim().toLowerCase();
+
+    return authRepository.signIn({
+      ...data,
       email,
-      password,
     });
-  },
+  }
 
-  signOut: async () => {
-    return await supabase.auth.signOut();
-  },
+  async signOut() {
+    return authRepository.signOut();
+  }
 
-  getUser: async () => {
-    return await supabase.auth.getUser();
-  },
-};
+  async getSession() {
+    return authRepository.getSession();
+  }
+
+  async getUser() {
+    return authRepository.getUser();
+  }
+
+  async resetPassword(email: string) {
+    return authRepository.resetPassword(email);
+  }
+}
+
+export const authService = new AuthService();
