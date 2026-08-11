@@ -4,6 +4,7 @@ import { useEffect } from "react";
 
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/auth.store";
+import { profileService } from "@/services/profile/profile.service";
 
 interface Props {
   children: React.ReactNode;
@@ -32,6 +33,14 @@ export default function AuthProvider({
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+
+      if (session?.user && session.user.email) {
+        profileService.ensureProfile(
+          session.user.id,
+          session.user.email,
+          session.user.user_metadata?.full_name
+        );
+      }
     }
 
     initialize();
@@ -50,6 +59,14 @@ export default function AuthProvider({
         setSession(session);
         setUser(session.user);
         setLoading(false);
+
+        if (session.user && session.user.email) {
+          profileService.ensureProfile(
+            session.user.id,
+            session.user.email,
+            session.user.user_metadata?.full_name
+          );
+        }
       }
     );
 

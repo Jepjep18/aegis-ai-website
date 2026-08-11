@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { authService } from "@/services/auth/auth.service";
+import { toast } from "sonner";
 
 import AuthCard from "../layout/AuthCard";
 import AuthHeader from "../shared/AuthHeader";
@@ -13,6 +16,34 @@ import PasswordInput from "../shared/PasswordInput";
 import SocialLogin from "../shared/SocialLogin";
 
 export default function SignInForm() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      toast.error("Please enter email and password");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await authService.signIn({ email, password });
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Welcome back!");
+        router.push("/dashboard");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to sign in");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AuthCard>
       <AuthHeader
@@ -20,14 +51,17 @@ export default function SignInForm() {
         description="Sign in to continue your interview preparation."
       />
 
-      <form className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
           <Label>Email</Label>
 
           <Input
             type="email"
             placeholder="john@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             className="h-12 rounded-xl"
+            required
           />
         </div>
 
@@ -43,14 +77,20 @@ export default function SignInForm() {
             </Link>
           </div>
 
-          <PasswordInput placeholder="••••••••" />
+          <PasswordInput
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            required
+          />
         </div>
 
         <Button
-          className="h-12 w-full rounded-xl"
+          className="h-12 w-full rounded-xl bg-gradient-to-r from-cyan-400 to-sky-500 font-semibold text-[#051424] hover:opacity-95"
           type="submit"
+          disabled={isLoading}
         >
-          Sign In
+          {isLoading ? "Signing in..." : "Sign In"}
         </Button>
       </form>
 

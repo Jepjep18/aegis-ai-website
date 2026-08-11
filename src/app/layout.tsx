@@ -4,6 +4,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 import AuthProvider from "@/providers/AuthProvider";
+import QueryProvider from "@/providers/QueryProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -116,9 +117,11 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="min-h-screen bg-background text-foreground antialiased">
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <QueryProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );
