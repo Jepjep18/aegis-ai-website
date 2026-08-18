@@ -54,12 +54,10 @@ export default function InterviewCard({ session }: InterviewCardProps) {
         </span>
         <Button
           size="sm"
-          asChild
+          render={<Link href={`/interviews/${session.id}`} />}
           className="rounded-xl bg-cyan-500/10 text-cyan-300 hover:bg-cyan-400 hover:text-[#051424] font-medium"
         >
-          <Link href={`/interviews/${session.id}`}>
-            Enter Workspace <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-          </Link>
+          Enter Workspace <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
         </Button>
       </div>
     </Card>

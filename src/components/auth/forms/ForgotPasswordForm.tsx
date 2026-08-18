@@ -52,10 +52,10 @@ export default function ForgotPasswordForm() {
             Check your inbox for <span className="font-semibold text-white">{email}</span>. Follow the link inside to reset your password.
           </p>
           <Button
-            asChild
+            render={<Link href="/sign-in" />}
             className="w-full rounded-xl bg-white/10 text-white hover:bg-white/20"
           >
-            <Link href="/sign-in">Return to Sign In</Link>
+            Return to Sign In
           </Button>
         </div>
       ) : (

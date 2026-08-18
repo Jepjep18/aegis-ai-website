@@ -41,10 +41,13 @@ export default function RecentSessions({
         <h3 className="text-lg font-semibold text-white tracking-tight">
           Recent Interview Sessions
         </h3>
-        <Button variant="ghost" size="sm" asChild className="text-cyan-400 hover:text-cyan-300">
-          <Link href="/interviews">
-            View All <ChevronRight className="ml-1 h-4 w-4" />
-          </Link>
+        <Button
+          variant="ghost"
+          size="sm"
+          render={<Link href="/interviews" />}
+          className="text-cyan-400 hover:text-cyan-300"
+        >
+          View All <ChevronRight className="ml-1 h-4 w-4" />
         </Button>
       </div>
 
@@ -86,10 +89,12 @@ export default function RecentSessions({
               </div>
               <div className="flex items-center gap-3">
                 {getStatusBadge(session.status)}
-                <Button variant="ghost" size="icon-sm" asChild>
-                  <Link href={`/interviews/${session.id}`}>
-                    <ChevronRight className="h-4 w-4 text-slate-400" />
-                  </Link>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  render={<Link href={`/interviews/${session.id}`} />}
+                >
+                  <ChevronRight className="h-4 w-4 text-slate-400" />
                 </Button>
               </div>
             </Card>

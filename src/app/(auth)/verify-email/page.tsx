@@ -22,10 +22,10 @@ export default function VerifyEmailPage() {
         </p>
 
         <Button
-          asChild
+          render={<Link href="/sign-in" />}
           className="w-full rounded-xl bg-gradient-to-r from-cyan-400 to-sky-500 font-semibold text-[#051424] hover:opacity-95 mt-4"
         >
-          <Link href="/sign-in">Return to Sign In</Link>
+          Return to Sign In
         </Button>
       </div>
     </AuthCard>

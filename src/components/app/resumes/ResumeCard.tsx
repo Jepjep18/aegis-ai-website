@@ -52,13 +52,13 @@ export default function ResumeCard({ resume, onDelete }: ResumeCardProps) {
           <Button
             variant="outline"
             size="sm"
-            asChild
+            render={
+              <a href={resume.file_url} target="_blank" rel="noreferrer" />
+            }
             className="flex-1 rounded-xl border-white/10 text-slate-300 hover:bg-white/5"
           >
-            <a href={resume.file_url} target="_blank" rel="noreferrer">
-              <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-              Preview
-            </a>
+            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+            Preview
           </Button>
         )}
         <Button

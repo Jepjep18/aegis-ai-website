@@ -38,13 +38,11 @@ export default function AppHeader({ onNewInterviewClick }: AppHeaderProps) {
           </Button>
         ) : (
           <Button
-            asChild
+            render={<Link href="/interviews" />}
             className="h-10 rounded-xl bg-gradient-to-r from-cyan-400 to-sky-500 font-medium text-[#051424] shadow-lg shadow-cyan-500/20 hover:opacity-95"
           >
-            <Link href="/interviews">
-              <Plus className="mr-2 h-4 w-4 stroke-[2.5]" />
-              New Interview
-            </Link>
+            <Plus className="mr-2 h-4 w-4 stroke-[2.5]" />
+            New Interview
           </Button>
         )}
       </div>
