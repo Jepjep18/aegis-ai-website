@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import { blobToBase64, blobToWav } from "@/lib/audio";
+import { blobToBase64 } from "@/lib/audio";
 import AppHeader from "@/components/app/layout/AppHeader";
 import {
   Mic,
@@ -121,25 +121,13 @@ export default function AudioTestPage() {
     const rawSize = blob.size;
     log("AUDIO", `Raw blob: ${(rawSize / 1024).toFixed(1)} KB (${blob.type})`, "info");
 
-    // Convert to WAV for reliable Gemini transcription
-    log("AUDIO", "Converting to WAV (16 kHz mono)…", "info");
-    let wav: Blob;
-    try {
-      wav = await blobToWav(blob);
-    } catch (err) {
-      log("AUDIO", `WAV conversion failed: ${err} - sending raw blob instead`, "warn");
-      wav = blob; // fall back to original format
-    }
-    const wavSize = wav.size;
-    log("AUDIO", `Audio ready: ${(wavSize / 1024).toFixed(1)} KB`, "success");
-
-    // Base64 encode
+    // Send the raw WebM/Opus blob directly to Gemini (no WAV conversion needed)
+    const mimeType = blob.type || "audio/webm";
     log("API", "Encoding to base64…", "info");
-    const base64 = await blobToBase64(wav);
-    const mimeType = wav.type || blob.type || "audio/webm";
+    const base64 = await blobToBase64(blob);
     log("API", `Base64: ${(base64.length * 0.75 / 1024).toFixed(1)} KB (mime: ${mimeType})`, "info");
 
-    setRecordingInfo({ rawSize, wavSize, durationSec: 0 });
+    setRecordingInfo({ rawSize, wavSize: 0, durationSec: 0 });
 
     // Send to transcribe
     log("API", "Sending to /api/interview/transcribe…", "info");

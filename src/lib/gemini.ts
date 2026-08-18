@@ -18,9 +18,16 @@ const RETRY_DELAY_MS = 1_000;
 /** Ordered model chain: primary first, then fallbacks for overload/unavailable. */
 const GEMINI_MODELS = [
   GEMINI_MODEL,
+  "gemini-2.0-flash",
   "gemini-flash-latest",
-  "gemini-flash-lite-latest",
 ].filter((model, index, all) => model && all.indexOf(model) === index);
+
+/** Models optimised for audio transcription (ordered best → good). */
+const TRANSCRIPTION_MODELS = [
+  "gemini-2.0-flash",
+  "gemini-2.5-flash",
+  "gemini-flash-latest",
+].filter((model, index, all) => all.indexOf(model) === index);
 
 interface GenerateTextOptions {
   systemPrompt?: string;
@@ -179,15 +186,12 @@ export async function transcribeAudio(base64Audio: string, mimeType: string): Pr
     mimeType,
     audioBase64Length: base64Audio.length,
     estimatedKB: Math.round((base64Audio.length * 0.75) / 1024),
-    models: GEMINI_MODELS,
+    models: TRANSCRIPTION_MODELS,
   });
 
   const prompt =
-    "You are a precise audio transcription assistant. " +
-    "Listen to the audio carefully and transcribe EVERY word the speaker says, exactly as spoken. " +
-    "Do NOT guess, hallucinate, or add words that are not in the recording. " +
-    "Return ONLY the transcribed text — no quotes, no timestamps, no commentary, no labels. " +
-    "If the audio contains no speech, return an empty string.";
+    "Transcribe the attached audio file. Output only the spoken words. " +
+    "If the audio is silent or unintelligible, output an empty string.";
 
   const payload = {
     contents: [
@@ -207,12 +211,28 @@ export async function transcribeAudio(base64Audio: string, mimeType: string): Pr
     generationConfig: { temperature: 0 },
   };
 
-  const result = await callGemini(payload, { allowEmpty: true });
-  console.log("[Gemini] transcribeAudio result:", {
-    textLength: result.length,
-    preview: result.slice(0, 100) || "(empty)",
-  });
-  return result;
+  // Use transcription-optimised model chain.
+  let lastError: GeminiRequestError | null = null;
+  for (const model of TRANSCRIPTION_MODELS) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      console.log(`[Gemini] transcribe model=${model} attempt=${attempt + 1}/2`);
+      try {
+        const result = await requestModel(model, payload, true);
+        console.log("[Gemini] transcribeAudio result:", {
+          model,
+          textLength: result.length,
+          preview: result.slice(0, 100) || "(empty)",
+        });
+        return result;
+      } catch (error) {
+        lastError = error as GeminiRequestError;
+        if (lastError.status === 400) throw error;
+        if (lastError.status === 404) break;
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError ?? new GeminiRequestError("Transcription failed after retries.");
 }
 
 /** Extracts a JSON object from Gemini output, tolerating markdown fences. */
