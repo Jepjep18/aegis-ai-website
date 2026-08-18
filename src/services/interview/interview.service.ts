@@ -1,4 +1,8 @@
-import { interviewRepository, InterviewSessionRow } from "./interview.repository";
+import {
+  interviewRepository,
+  InterviewSessionRow,
+  InterviewMessageRow,
+} from "./interview.repository";
 import { jobDescriptionService } from "@/services/job-description/jd.service";
 
 export interface CreateInterviewParams {
@@ -38,6 +42,10 @@ export class InterviewService {
 
   async getSession(sessionId: string): Promise<InterviewSessionRow | null> {
     return interviewRepository.getSessionById(sessionId);
+  }
+
+  async getSessionMessages(sessionId: string): Promise<InterviewMessageRow[]> {
+    return interviewRepository.getSessionMessages(sessionId);
   }
 }
 

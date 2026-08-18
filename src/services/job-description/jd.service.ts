@@ -14,6 +14,10 @@ export class JobDescriptionService {
       position: position || null,
     });
   }
+
+  async getJobDescriptionById(id: string): Promise<JobDescriptionRow | null> {
+    return jobDescriptionRepository.getJobDescriptionById(id);
+  }
 }
 
 export const jobDescriptionService = new JobDescriptionService();

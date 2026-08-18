@@ -3,8 +3,20 @@ import { Database } from "@/lib/supabase/database.types";
 
 export type InterviewSessionRow = Database["public"]["Tables"]["interview_sessions"]["Row"];
 export type InterviewSessionInsert = Database["public"]["Tables"]["interview_sessions"]["Insert"];
+export type InterviewMessageRow = Database["public"]["Tables"]["interview_messages"]["Row"];
 
 export class InterviewRepository {
+  async getSessionMessages(sessionId: string): Promise<InterviewMessageRow[]> {
+    const { data, error } = await supabase
+      .from("interview_messages")
+      .select("*")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  }
+
   async getUserSessions(userId: string): Promise<InterviewSessionRow[]> {
     const { data, error } = await supabase
       .from("interview_sessions")

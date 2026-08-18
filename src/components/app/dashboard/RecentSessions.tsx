@@ -10,8 +10,8 @@ interface InterviewSessionItem {
   id: string;
   title: string;
   company_name?: string | null;
-  status: string;
-  created_at: string;
+  status: string | null;
+  created_at: string | null;
 }
 
 interface RecentSessionsProps {
@@ -23,15 +23,15 @@ export default function RecentSessions({
   sessions = [],
   isLoading = false,
 }: RecentSessionsProps) {
-  const getStatusBadge = (status: string) => {
-    switch (status.toLowerCase()) {
+  const getStatusBadge = (status: string | null) => {
+    switch (status?.toLowerCase()) {
       case "active":
       case "listening":
         return <Badge variant="info">Active</Badge>;
       case "completed":
         return <Badge variant="success">Completed</Badge>;
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return <Badge variant="secondary">{status || "Preparing"}</Badge>;
     }
   };
 
@@ -80,7 +80,9 @@ export default function RecentSessions({
                   <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3.5 w-3.5" />
-                      {new Date(session.created_at).toLocaleDateString()}
+                      {session.created_at
+                        ? new Date(session.created_at).toLocaleDateString()
+                        : "Recently"}
                     </span>
                     {session.company_name && (
                       <span>• {session.company_name}</span>

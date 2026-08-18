@@ -15,6 +15,17 @@ export class JobDescriptionRepository {
     if (error) throw error;
     return data;
   }
+
+  async getJobDescriptionById(id: string): Promise<JobDescriptionRow | null> {
+    const { data, error } = await supabase
+      .from("job_descriptions")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error) return null;
+    return data;
+  }
 }
 
 export const jobDescriptionRepository = new JobDescriptionRepository();
