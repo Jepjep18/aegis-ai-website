@@ -48,6 +48,17 @@ export class ResumeRepository {
     return data;
   }
 
+  async getResumeById(id: string): Promise<ResumeRow | null> {
+    const { data, error } = await supabase
+      .from("resumes")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error) return null;
+    return data;
+  }
+
   async deleteResume(id: string): Promise<void> {
     const { error } = await supabase
       .from("resumes")

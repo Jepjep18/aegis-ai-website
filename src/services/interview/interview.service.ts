@@ -2,8 +2,10 @@ import {
   interviewRepository,
   InterviewSessionRow,
   InterviewMessageRow,
+  InterviewMessageInsert,
 } from "./interview.repository";
 import { jobDescriptionService } from "@/services/job-description/jd.service";
+import { getSessionDurationMinutes, Plan } from "@/lib/config/interview.config";
 
 export interface CreateInterviewParams {
   userId: string;
@@ -13,6 +15,7 @@ export interface CreateInterviewParams {
   resumeId: string;
   aiModel?: string;
   interviewType?: string;
+  plan?: Plan;
 }
 
 export class InterviewService {
@@ -29,6 +32,7 @@ export class InterviewService {
     );
 
     const title = `${params.position} at ${params.companyName}`;
+    const durationMinutes = getSessionDurationMinutes(params.plan);
 
     return interviewRepository.createSession({
       user_id: params.userId,
@@ -37,6 +41,7 @@ export class InterviewService {
       job_description_id: jdRecord.id,
       status: "Preparing",
       started_at: new Date().toISOString(),
+      duration_minutes: durationMinutes,
     });
   }
 
@@ -46,6 +51,21 @@ export class InterviewService {
 
   async getSessionMessages(sessionId: string): Promise<InterviewMessageRow[]> {
     return interviewRepository.getSessionMessages(sessionId);
+  }
+
+  async activateSession(sessionId: string): Promise<InterviewSessionRow | null> {
+    return interviewRepository.updateSession(sessionId, { status: "Active" });
+  }
+
+  async completeSession(sessionId: string): Promise<InterviewSessionRow | null> {
+    return interviewRepository.updateSession(sessionId, {
+      status: "Completed",
+      ended_at: new Date().toISOString(),
+    });
+  }
+
+  async saveMessage(record: InterviewMessageInsert): Promise<InterviewMessageRow> {
+    return interviewRepository.saveMessage(record);
   }
 }
 

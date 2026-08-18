@@ -16,7 +16,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useResumes } from "@/hooks/useResumes";
 import { useInterviews } from "@/hooks/useInterviews";
-import { Building2, Briefcase, FileText, Cpu, Sparkles, ArrowRight, ArrowLeft } from "lucide-react";
+import { useAuthStore } from "@/store/auth.store";
+import {
+  getSessionDurationMinutes,
+  resolvePlan,
+  SESSION_DURATIONS,
+} from "@/lib/config/interview.config";
+import { Building2, Briefcase, FileText, Cpu, Sparkles, ArrowRight, ArrowLeft, Timer } from "lucide-react";
 import { toast } from "sonner";
 
 interface NewInterviewModalProps {
@@ -29,8 +35,11 @@ export default function NewInterviewModal({
   onOpenChange,
 }: NewInterviewModalProps) {
   const router = useRouter();
+  const { user } = useAuthStore();
   const { resumes } = useResumes();
   const { createSession, isCreating } = useInterviews();
+
+  const plan = resolvePlan(user?.user_metadata?.plan as "free" | "premium" | undefined);
 
   const [step, setStep] = useState(1);
   const [companyName, setCompanyName] = useState("");
@@ -73,6 +82,7 @@ export default function NewInterviewModal({
         resumeId: selectedResumeId || resumes[0]?.id,
         aiModel,
         interviewType,
+        plan,
       });
 
       toast.success("Interview session created!");
@@ -204,7 +214,7 @@ export default function NewInterviewModal({
                 AI Model Engine
               </Label>
               <div className="grid grid-cols-3 gap-3">
-                {["GPT-4o", "Claude 3.5 Sonnet", "Gemini 1.5 Pro"].map((model) => (
+                {["GPT-4o", "Claude 3.5 Sonnet", "Gemini 2.5 Flash"].map((model) => (
                   <button
                     key={model}
                     type="button"
@@ -245,6 +255,12 @@ export default function NewInterviewModal({
             </div>
           </div>
         )}
+
+        <p className="mt-4 flex items-center gap-1.5 text-xs text-slate-500">
+          <Timer className="h-3.5 w-3.5" />
+          Session length: {getSessionDurationMinutes(plan)} minutes
+          {plan === "free" && ` · upgrade to premium for ${SESSION_DURATIONS.premium} minutes`}
+        </p>
 
         <DialogFooter className="mt-6 flex items-center justify-between sm:justify-between">
           {step > 1 ? (

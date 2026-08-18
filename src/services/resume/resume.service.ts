@@ -22,6 +22,10 @@ export class ResumeService {
     });
   }
 
+  async getResumeById(id: string): Promise<ResumeRow | null> {
+    return resumeRepository.getResumeById(id);
+  }
+
   async deleteResume(id: string): Promise<void> {
     return resumeRepository.deleteResume(id);
   }

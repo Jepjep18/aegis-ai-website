@@ -71,7 +71,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="grid grid-cols-3 gap-3">
-              {["GPT-4o", "Claude 3.5 Sonnet", "Gemini 1.5 Pro"].map((model) => (
+              {["GPT-4o", "Claude 3.5 Sonnet", "Gemini 2.5 Flash"].map((model) => (
                 <button
                   key={model}
                   type="button"
