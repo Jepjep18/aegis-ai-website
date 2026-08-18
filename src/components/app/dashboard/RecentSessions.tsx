@@ -44,6 +44,7 @@ export default function RecentSessions({
         <Button
           variant="ghost"
           size="sm"
+          nativeButton={false}
           render={<Link href="/interviews" />}
           className="text-cyan-400 hover:text-cyan-300"
         >
@@ -92,6 +93,7 @@ export default function RecentSessions({
                 <Button
                   variant="ghost"
                   size="icon-sm"
+                  nativeButton={false}
                   render={<Link href={`/interviews/${session.id}`} />}
                 >
                   <ChevronRight className="h-4 w-4 text-slate-400" />

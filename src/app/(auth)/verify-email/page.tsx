@@ -22,6 +22,7 @@ export default function VerifyEmailPage() {
         </p>
 
         <Button
+          nativeButton={false}
           render={<Link href="/sign-in" />}
           className="w-full rounded-xl bg-gradient-to-r from-cyan-400 to-sky-500 font-semibold text-[#051424] hover:opacity-95 mt-4"
         >

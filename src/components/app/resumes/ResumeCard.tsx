@@ -52,6 +52,7 @@ export default function ResumeCard({ resume, onDelete }: ResumeCardProps) {
           <Button
             variant="outline"
             size="sm"
+            nativeButton={false}
             render={
               <a href={resume.file_url} target="_blank" rel="noreferrer" />
             }

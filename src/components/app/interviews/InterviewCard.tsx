@@ -54,6 +54,7 @@ export default function InterviewCard({ session }: InterviewCardProps) {
         </span>
         <Button
           size="sm"
+          nativeButton={false}
           render={<Link href={`/interviews/${session.id}`} />}
           className="rounded-xl bg-cyan-500/10 text-cyan-300 hover:bg-cyan-400 hover:text-[#051424] font-medium"
         >

@@ -38,6 +38,7 @@ export default function AppHeader({ onNewInterviewClick }: AppHeaderProps) {
           </Button>
         ) : (
           <Button
+            nativeButton={false}
             render={<Link href="/interviews" />}
             className="h-10 rounded-xl bg-gradient-to-r from-cyan-400 to-sky-500 font-medium text-[#051424] shadow-lg shadow-cyan-500/20 hover:opacity-95"
           >
