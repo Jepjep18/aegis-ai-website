@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { blobToBase64, blobToWav } from "@/lib/audio";
 import AppHeader from "@/components/app/layout/AppHeader";
 import {
@@ -13,8 +14,6 @@ import {
   Square,
   Loader2,
   AudioLines,
-  CheckCircle2,
-  TriangleAlert,
   Trash2,
   Copy,
   Sparkles,
@@ -49,6 +48,28 @@ export default function AudioTestPage() {
     durationSec: number;
   } | null>(null);
 
+  const {
+    supported: speechSupported,
+    isListening,
+    interimTranscript,
+    finalTranscript,
+    start: startSpeechRecognition,
+    stop: stopSpeechRecognition,
+    reset: resetSpeechTranscript,
+  } = useSpeechRecognition({
+    language: "en-US",
+    onResult: (text, isFinal) => {
+      if (isFinal) {
+        log("SPEECH", `Final: ${text.slice(-80)}`, "success");
+      } else {
+        log("SPEECH", `Interim: ${text.slice(-80)}`, "info");
+      }
+    },
+    onError: (msg) => {
+      log("SPEECH", msg, "warn");
+    },
+  });
+
   const log = (tag: string, message: string, type: LogEntry["type"] = "info") => {
     setLogs((prev) => [...prev, { time: formatTime(), tag, message, type }]);
   };
@@ -68,13 +89,29 @@ export default function AudioTestPage() {
   const handleStart = async () => {
     setAnswer(null);
     setRecordingInfo(null);
+    resetSpeechTranscript();
     log("MIC", "Requesting microphone access…", "info");
     await startRecording();
     log("MIC", "Recording started — play the question now", "success");
+
+    // Start real-time speech recognition
+    if (speechSupported) {
+      log("SPEECH", "Starting live transcription…", "info");
+      startSpeechRecognition();
+    } else {
+      log("SPEECH", "Speech API not available — Gemini transcription only", "warn");
+    }
   };
 
   const handleStop = async () => {
     log("MIC", "Stopping recording…", "info");
+
+    // Stop real-time speech recognition
+    stopSpeechRecognition();
+    if (finalTranscript) {
+      log("SPEECH", `Live transcript captured: ${finalTranscript.length} chars`, "success");
+    }
+
     const blob = await stopRecording();
     if (!blob) {
       log("MIC", "No audio captured", "error");
@@ -84,30 +121,25 @@ export default function AudioTestPage() {
     const rawSize = blob.size;
     log("AUDIO", `Raw blob: ${(rawSize / 1024).toFixed(1)} KB (${blob.type})`, "info");
 
-    // Convert to WAV
+    // Convert to WAV for reliable Gemini transcription
     log("AUDIO", "Converting to WAV (16 kHz mono)…", "info");
     let wav: Blob;
     try {
       wav = await blobToWav(blob);
     } catch (err) {
-      log("AUDIO", `WAV conversion failed: ${err}`, "error");
-      return;
+      log("AUDIO", `WAV conversion failed: ${err} - sending raw blob instead`, "warn");
+      wav = blob; // fall back to original format
     }
     const wavSize = wav.size;
-    const durationSec = wavSize > 44 ? (wavSize - 44) / (16000 * 2) : 0;
-    log("AUDIO", `WAV ready: ${(wavSize / 1024).toFixed(1)} KB, ~${durationSec.toFixed(1)}s`, "success");
-    setRecordingInfo({ rawSize, wavSize, durationSec });
-
-    if (durationSec < 0.5) {
-      log("AUDIO", "Recording too short — likely no speech captured", "warn");
-      toast.warning("Recording too short — try speaking longer.");
-      return;
-    }
+    log("AUDIO", `Audio ready: ${(wavSize / 1024).toFixed(1)} KB`, "success");
 
     // Base64 encode
     log("API", "Encoding to base64…", "info");
     const base64 = await blobToBase64(wav);
-    log("API", `Base64: ${(base64.length * 0.75 / 1024).toFixed(1)} KB`, "info");
+    const mimeType = wav.type || blob.type || "audio/webm";
+    log("API", `Base64: ${(base64.length * 0.75 / 1024).toFixed(1)} KB (mime: ${mimeType})`, "info");
+
+    setRecordingInfo({ rawSize, wavSize, durationSec: 0 });
 
     // Send to transcribe
     log("API", "Sending to /api/interview/transcribe…", "info");
@@ -116,7 +148,7 @@ export default function AudioTestPage() {
       const res = await fetch("/api/interview/transcribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audio: base64, mimeType: "audio/wav" }),
+        body: JSON.stringify({ audio: base64, mimeType }),
       });
       const data = await res.json();
 
@@ -177,6 +209,41 @@ export default function AudioTestPage() {
           </p>
         </div>
 
+        {/* Live transcription display */}
+        {isListening && (
+          <Card className="p-4 border-cyan-400/30 bg-cyan-500/5">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+              <span className="text-sm font-semibold text-cyan-300">
+                Live Transcription
+              </span>
+              <Badge variant="default">Listening</Badge>
+            </div>
+            <div className="min-h-[3rem] rounded-xl bg-black/30 border border-white/5 p-3">
+              {finalTranscript && (
+                <span className="text-sm text-slate-200 leading-relaxed">
+                  {finalTranscript}
+                </span>
+              )}
+              {interimTranscript && (
+                <span className="text-sm text-slate-400 italic leading-relaxed">
+                  {finalTranscript ? " " : ""}{interimTranscript}
+                </span>
+              )}
+              {!finalTranscript && !interimTranscript && (
+                <p className="text-sm text-slate-500">
+                  Waiting for speech…
+                </p>
+              )}
+            </div>
+            <p className="text-xs text-slate-500 mt-2">
+              {speechSupported
+                ? "Transcription powered by browser Speech API — updates live as you speak"
+                : "Live transcription not supported in this browser"}
+            </p>
+          </Card>
+        )}
+
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Left: Controls */}
           <div className="space-y-4">
@@ -201,7 +268,9 @@ export default function AudioTestPage() {
                     Recording…
                   </p>
                   <p className="text-xs text-rose-300/70 mt-1">
-                    Play the question on your phone, then stop.
+                    {isListening
+                      ? "Live transcription active — speak now!"
+                      : "Play the question on your phone, then stop."}
                   </p>
                 </div>
               ) : (

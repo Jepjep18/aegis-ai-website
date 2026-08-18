@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 function pickMimeType(): string {
   if (typeof MediaRecorder === "undefined") return "";
@@ -20,7 +20,11 @@ export function useAudioRecorder({ onError }: UseAudioRecorderOptions = {}) {
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const [supported] = useState<boolean>(() => typeof MediaRecorder !== "undefined");
+  const supported = useSyncExternalStore(
+    () => () => {},
+    () => typeof MediaRecorder !== "undefined",
+    () => false,
+  );
   const [isRecording, setIsRecording] = useState(false);
 
   const stop = useCallback(async (): Promise<Blob | null> => {

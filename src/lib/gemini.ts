@@ -181,14 +181,20 @@ export async function transcribeAudio(base64Audio: string, mimeType: string): Pr
     estimatedKB: Math.round((base64Audio.length * 0.75) / 1024),
     models: GEMINI_MODELS,
   });
+
+  const prompt =
+    "You are a precise audio transcription assistant. " +
+    "Listen to the audio carefully and transcribe EVERY word the speaker says, exactly as spoken. " +
+    "Do NOT guess, hallucinate, or add words that are not in the recording. " +
+    "Return ONLY the transcribed text — no quotes, no timestamps, no commentary, no labels. " +
+    "If the audio contains no speech, return an empty string.";
+
   const payload = {
     contents: [
       {
         role: "user",
         parts: [
-          {
-            text: "Transcribe the speech in this audio recording verbatim. Return ONLY the spoken words as plain text — no commentary, no quotes, no timestamps.",
-          },
+          { text: prompt },
           {
             inlineData: {
               mimeType,
