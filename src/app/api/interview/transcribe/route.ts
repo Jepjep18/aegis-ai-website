@@ -29,10 +29,19 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    console.log("[Transcribe] Received audio:", {
+      audioBase64Length: audio.length,
+      estimatedKB: Math.round((audio.length * 0.75) / 1024),
+      mimeType: body.mimeType || "audio/wav",
+    });
     const text = await transcribeAudio(audio, body.mimeType || "audio/wav");
+    console.log("[Transcribe] Gemini responded:", {
+      textLength: text.length,
+      preview: text.slice(0, 150) || "(empty)",
+    });
     return NextResponse.json({ text });
   } catch (error) {
-    console.error("Transcribe failed:", error);
+    console.error("[Transcribe] Failed:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to transcribe audio" },
       { status: 500 }

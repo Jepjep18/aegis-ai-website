@@ -131,25 +131,47 @@ export default function InterviewWorkspacePage() {
 
   const handleStopListening = async () => {
     const blob = await stopRecording();
-    if (!blob) return;
+    if (!blob) {
+      console.warn("[Interview] No audio blob returned from recorder");
+      return;
+    }
+    console.log("[Interview] Raw audio blob:", { size: blob.size, type: blob.type });
 
     setIsTranscribing(true);
     try {
+      console.log("[Interview] Converting blob to WAV…");
       const wav = await blobToWav(blob);
+      const wavDurationSec = wav.size > 44 ? ((wav.size - 44) / (16000 * 2)).toFixed(1) : "0";
+      console.log("[Interview] WAV converted:", { size: wav.size, durationSec: wavDurationSec });
+
       const base64 = await blobToBase64(wav);
+      console.log("[Interview] Base64 audio length:", base64.length, "chars (~", Math.round(base64.length * 0.75 / 1024), "KB)");
+
+      console.log("[Interview] Sending to /api/interview/transcribe…");
       const res = await fetch("/api/interview/transcribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ audio: base64, mimeType: "audio/wav" }),
       });
       const data = await res.json();
+      console.log("[Interview] Transcribe response:", { status: res.status, text: data.text?.slice(0, 200) || "(empty)" });
+
       if (!res.ok) throw new Error(data.error || "Failed to transcribe question");
-      setCurrentQuestion(data.text || "");
+      const questionText = data.text || "";
+      setCurrentQuestion(questionText);
       setSuggestedAnswer(null);
       setKeywords([]);
       setConfidence(null);
-      toast.success("Question transcribed — review it, then generate your answer.");
+
+      if (questionText.trim()) {
+        toast.success("Question transcribed — generating your answer…");
+        await generateAnswerFor(questionText);
+      } else {
+        console.warn("[Interview] Transcription returned empty text — no speech detected");
+        toast.warning("No speech detected — try recording again or type the question.");
+      }
     } catch (err) {
+      console.error("[Interview] Transcription failed:", err);
       toast.error(err instanceof Error ? err.message : "Failed to transcribe question");
     } finally {
       setIsTranscribing(false);
@@ -224,15 +246,15 @@ export default function InterviewWorkspacePage() {
     }
   };
 
-  const handleGenerateAnswer = async () => {
-    if (!currentQuestion.trim()) return;
+  const generateAnswerFor = async (questionText: string) => {
+    if (!questionText.trim()) return;
     setIsGenerating(true);
     try {
       const res = await fetch("/api/interview/answer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          question: currentQuestion,
+          question: questionText,
           resumeText: resume?.parsed_text || resume?.file_name || "",
           jdContent: jobDescription?.content || "",
           position: jobDescription?.position,
@@ -249,18 +271,22 @@ export default function InterviewWorkspacePage() {
       await interviewService.saveMessage({
         session_id: sessionId,
         role: "interviewer",
-        question: currentQuestion,
+        question: questionText,
         answer: data.answer,
         confidence: data.confidence ?? null,
         keywords: data.keywords || [],
       });
-      savedForQuestionRef.current = currentQuestion;
+      savedForQuestionRef.current = questionText;
       await queryClient.invalidateQueries({ queryKey: ["interview-messages", sessionId] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate answer");
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleGenerateAnswer = () => {
+    void generateAnswerFor(currentQuestion);
   };
 
   const handleTimerExpire = async () => {

@@ -15,6 +15,11 @@ export async function blobToWav(blob: Blob): Promise<Blob> {
 
   try {
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    console.log("[Audio] Decoded blob:", {
+      originalChannels: audioBuffer.numberOfChannels,
+      originalSampleRate: audioBuffer.sampleRate,
+      durationSec: audioBuffer.duration.toFixed(2),
+    });
 
     // Render as mono at 16kHz.
     const targetRate = 16000;

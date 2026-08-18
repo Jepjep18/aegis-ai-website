@@ -30,6 +30,12 @@ export function useAudioRecorder({ onError }: UseAudioRecorderOptions = {}) {
     return new Promise((resolve) => {
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        console.log("[AudioRecorder] Recording stopped:", {
+          chunks: chunksRef.current.length,
+          blobSize: blob.size,
+          blobType: blob.type,
+          durationEstimate: recorder.state,
+        });
         chunksRef.current = [];
         streamRef.current?.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
@@ -52,21 +58,40 @@ export function useAudioRecorder({ onError }: UseAudioRecorderOptions = {}) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
+      const tracks = stream.getAudioTracks();
+      console.log("[AudioRecorder] Mic access granted:", {
+        tracks: tracks.length,
+        label: tracks[0]?.label,
+        settings: tracks[0]?.getSettings(),
+      });
+
       const mimeType = pickMimeType();
+      console.log("[AudioRecorder] Selected MIME type:", mimeType || "(browser default)");
+
       const recorder = mimeType
         ? new MediaRecorder(stream, { mimeType })
         : new MediaRecorder(stream);
 
       chunksRef.current = [];
+      let chunkIndex = 0;
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           chunksRef.current.push(event.data);
+          chunkIndex++;
+          console.log(`[AudioRecorder] Chunk #${chunkIndex}: ${event.data.size} bytes`);
         }
+      };
+      recorder.onstart = () => {
+        console.log("[AudioRecorder] Recording started, state:", recorder.state);
+      };
+      recorder.onerror = (event) => {
+        console.error("[AudioRecorder] Recorder error:", event);
       };
       recorder.start();
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
-    } catch {
+    } catch (err) {
+      console.error("[AudioRecorder] Failed to start recording:", err);
       onError?.("Microphone access denied or unavailable. Allow the mic and try again.");
     }
   }, [onError, supported]);

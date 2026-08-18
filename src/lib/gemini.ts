@@ -119,6 +119,7 @@ async function callGemini(
   for (const model of GEMINI_MODELS) {
     // Try each model up to 2 times (handles transient overload).
     for (let attempt = 0; attempt < 2; attempt++) {
+      console.log(`[Gemini] Trying model=${model} attempt=${attempt + 1}/2`);
       try {
         return await requestModel(model, payload, !!options.allowEmpty);
       } catch (error) {
@@ -174,6 +175,12 @@ export async function generateGeminiText<T = string>(
  * Gemini's multimodal audio input.
  */
 export async function transcribeAudio(base64Audio: string, mimeType: string): Promise<string> {
+  console.log("[Gemini] transcribeAudio called:", {
+    mimeType,
+    audioBase64Length: base64Audio.length,
+    estimatedKB: Math.round((base64Audio.length * 0.75) / 1024),
+    models: GEMINI_MODELS,
+  });
   const payload = {
     contents: [
       {
@@ -194,7 +201,12 @@ export async function transcribeAudio(base64Audio: string, mimeType: string): Pr
     generationConfig: { temperature: 0 },
   };
 
-  return callGemini(payload, { allowEmpty: true });
+  const result = await callGemini(payload, { allowEmpty: true });
+  console.log("[Gemini] transcribeAudio result:", {
+    textLength: result.length,
+    preview: result.slice(0, 100) || "(empty)",
+  });
+  return result;
 }
 
 /** Extracts a JSON object from Gemini output, tolerating markdown fences. */
