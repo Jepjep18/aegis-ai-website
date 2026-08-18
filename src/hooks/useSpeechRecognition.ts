@@ -158,7 +158,8 @@ export function useSpeechRecognition({
     }
 
     setIsListening(false);
-    setInterimTranscript("");
+    // Don't clear interimTranscript here — let the consumer read it
+    // via finalTranscript + interimTranscript before calling reset().
   }, []);
 
   const reset = useCallback(() => {

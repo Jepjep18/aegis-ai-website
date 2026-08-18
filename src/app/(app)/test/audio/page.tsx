@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,30 @@ function formatTime() {
   });
 }
 
+/**
+ * Creates a shared mic stream via AudioContext so both MediaRecorder
+ * and the Web Speech API can receive audio simultaneously.
+ */
+function createSharedMicStream(originalStream: MediaStream): {
+  sharedStream: MediaStream;
+  cleanup: () => void;
+} {
+  const ctx = new AudioContext();
+  const source = ctx.createMediaStreamSource(originalStream);
+  const dest = ctx.createMediaStreamDestination();
+  source.connect(dest);
+
+  // The destination stream contains the same audio as the original.
+  // MediaRecorder will use this; Speech API will use the original.
+  return {
+    sharedStream: dest.stream,
+    cleanup: () => {
+      source.disconnect();
+      ctx.close().catch(() => {});
+    },
+  };
+}
+
 export default function AudioTestPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [question, setQuestion] = useState("");
@@ -47,6 +71,11 @@ export default function AudioTestPage() {
     wavSize: number;
     durationSec: number;
   } | null>(null);
+
+  // Shared mic stream state
+  const originalStreamRef = useRef<MediaStream | null>(null);
+  const sharedStreamRef = useRef<MediaStream | null>(null);
+  const audioCtxCleanupRef = useRef<(() => void) | null>(null);
 
   const {
     supported: speechSupported,
@@ -70,9 +99,22 @@ export default function AudioTestPage() {
     },
   });
 
-  const log = (tag: string, message: string, type: LogEntry["type"] = "info") => {
-    setLogs((prev) => [...prev, { time: formatTime(), tag, message, type }]);
-  };
+  // Continuously sync the live transcript into the question field while recording
+  useEffect(() => {
+    if (isListening) {
+      const liveText = (finalTranscript + " " + interimTranscript).trim();
+      if (liveText) {
+        setQuestion(liveText);
+      }
+    }
+  }, [finalTranscript, interimTranscript, isListening]);
+
+  const log = useCallback(
+    (tag: string, message: string, type: LogEntry["type"] = "info") => {
+      setLogs((prev) => [...prev, { time: formatTime(), tag, message, type }]);
+    },
+    [],
+  );
 
   const {
     supported,
@@ -91,15 +133,35 @@ export default function AudioTestPage() {
     setRecordingInfo(null);
     resetSpeechTranscript();
     log("MIC", "Requesting microphone access…", "info");
-    await startRecording();
-    log("MIC", "Recording started — play the question now", "success");
 
-    // Start real-time speech recognition
-    if (speechSupported) {
-      log("SPEECH", "Starting live transcription…", "info");
-      startSpeechRecognition();
-    } else {
-      log("SPEECH", "Speech API not available — Gemini transcription only", "warn");
+    try {
+      // Step 1: Get the mic stream
+      const rawStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      originalStreamRef.current = rawStream;
+      log("MIC", "Microphone access granted", "success");
+
+      // Step 2: Create a shared stream via AudioContext
+      const { sharedStream, cleanup } = createSharedMicStream(rawStream);
+      sharedStreamRef.current = sharedStream;
+      audioCtxCleanupRef.current = cleanup;
+      log("MIC", "Shared audio stream created via AudioContext", "info");
+
+      // Step 3: Start the Speech API with the original stream
+      // The Speech API accesses the same physical mic that the AudioContext is reading from
+      if (speechSupported) {
+        log("SPEECH", "Starting live transcription…", "info");
+        startSpeechRecognition();
+      } else {
+        log("SPEECH", "Speech API not available — Gemini transcription only", "warn");
+      }
+
+      // Step 4: Start MediaRecorder with the shared (AudioContext) stream
+      // This ensures both consumers get audio from the same source
+      await startRecording(sharedStream);
+      log("MIC", "Recording started — speak now!", "success");
+    } catch (err) {
+      log("MIC", `Failed to start: ${err}`, "error");
+      toast.error("Microphone access denied");
     }
   };
 
@@ -108,11 +170,18 @@ export default function AudioTestPage() {
 
     // Stop real-time speech recognition
     stopSpeechRecognition();
-    if (finalTranscript) {
-      log("SPEECH", `Live transcript captured: ${finalTranscript.length} chars`, "success");
-    }
+    const liveText = (finalTranscript + " " + interimTranscript).trim();
 
+    // Stop audio recording
     const blob = await stopRecording();
+
+    // Clean up AudioContext and streams
+    audioCtxCleanupRef.current?.();
+    audioCtxCleanupRef.current = null;
+    originalStreamRef.current?.getTracks().forEach((t) => t.stop());
+    originalStreamRef.current = null;
+    sharedStreamRef.current = null;
+
     if (!blob) {
       log("MIC", "No audio captured", "error");
       return;
@@ -120,16 +189,23 @@ export default function AudioTestPage() {
 
     const rawSize = blob.size;
     log("AUDIO", `Raw blob: ${(rawSize / 1024).toFixed(1)} KB (${blob.type})`, "info");
+    setRecordingInfo({ rawSize, wavSize: 0, durationSec: 0 });
 
-    // Send the raw WebM/Opus blob directly to Gemini (no WAV conversion needed)
+    // If Speech API captured text, use it immediately — no Gemini call needed
+    if (liveText.length > 0) {
+      log("SPEECH", `Live transcript: ${liveText}`, "success");
+      log("TRANSCRIPT", liveText, "success");
+      setQuestion(liveText);
+      return;
+    }
+
+    // Fallback: send audio to Gemini for transcription
+    log("SPEECH", "No live transcript — falling back to Gemini", "warn");
     const mimeType = blob.type || "audio/webm";
     log("API", "Encoding to base64…", "info");
     const base64 = await blobToBase64(blob);
     log("API", `Base64: ${(base64.length * 0.75 / 1024).toFixed(1)} KB (mime: ${mimeType})`, "info");
 
-    setRecordingInfo({ rawSize, wavSize: 0, durationSec: 0 });
-
-    // Send to transcribe
     log("API", "Sending to /api/interview/transcribe…", "info");
     setIsTranscribing(true);
     try {
@@ -147,7 +223,7 @@ export default function AudioTestPage() {
 
       const text = data.text || "";
       log("API", `Transcription received: ${text.length} chars`, "success");
-      log("TRANSCRIPT", text || "(empty — no speech detected)", text ? "success" : "warn");
+      log("TRANSCRIPT", text || "(empty - no speech detected)", text ? "success" : "warn");
       setQuestion(text);
     } catch (err) {
       log("API", `Request failed: ${err}`, "error");
@@ -183,6 +259,14 @@ export default function AudioTestPage() {
 
   const clearLogs = () => setLogs([]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      audioCtxCleanupRef.current?.();
+      originalStreamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
   return (
     <>
       <AppHeader />
@@ -192,7 +276,7 @@ export default function AudioTestPage() {
             Audio Test
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Test mic capture, WAV conversion, Gemini transcription, and answer
+            Test mic capture, live transcription, Gemini fallback, and answer
             generation.
           </p>
         </div>
@@ -263,8 +347,8 @@ export default function AudioTestPage() {
                 </div>
               ) : (
                 <p className="text-sm text-slate-400">
-                  Click &quot;Start Recording&quot;, play a question on your
-                  phone, then click &quot;Stop &amp; Transcribe&quot;.
+                  Click &quot;Start Recording&quot;, speak into the mic,
+                  then click &quot;Stop &amp; Transcribe&quot;.
                 </p>
               )}
 
