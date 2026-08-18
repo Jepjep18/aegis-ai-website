@@ -37,8 +37,8 @@ export default function SignInForm() {
         toast.success("Welcome back!");
         router.push("/dashboard");
       }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to sign in");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to sign in");
     } finally {
       setIsLoading(false);
     }

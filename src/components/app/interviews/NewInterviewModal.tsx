@@ -85,8 +85,10 @@ export default function NewInterviewModal({
 
       // Navigate to workspace page
       router.push(`/interviews/${session.id}`);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to create interview session");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to create interview session"
+      );
     }
   };
 

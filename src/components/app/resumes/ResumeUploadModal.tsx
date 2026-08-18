@@ -52,8 +52,8 @@ export default function ResumeUploadModal({
       setFile(null);
       setTitle("");
       onOpenChange(false);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to upload resume");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to upload resume");
     }
   };
 

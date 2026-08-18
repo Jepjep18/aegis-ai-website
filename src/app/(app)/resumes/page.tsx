@@ -20,7 +20,7 @@ export default function ResumesPage() {
     try {
       await deleteResume(id);
       toast.success("Resume deleted successfully");
-    } catch (err: any) {
+    } catch {
       toast.error("Failed to delete resume");
     }
   };

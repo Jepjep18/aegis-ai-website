@@ -37,8 +37,8 @@ export default function SignUpForm() {
         toast.success("Account created successfully! Redirecting...");
         router.push("/dashboard");
       }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to create account");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create account");
     } finally {
       setIsLoading(false);
     }
