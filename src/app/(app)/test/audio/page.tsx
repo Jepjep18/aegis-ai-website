@@ -36,30 +36,6 @@ function formatTime() {
   });
 }
 
-/**
- * Creates a shared mic stream via AudioContext so both MediaRecorder
- * and the Web Speech API can receive audio simultaneously.
- */
-function createSharedMicStream(originalStream: MediaStream): {
-  sharedStream: MediaStream;
-  cleanup: () => void;
-} {
-  const ctx = new AudioContext();
-  const source = ctx.createMediaStreamSource(originalStream);
-  const dest = ctx.createMediaStreamDestination();
-  source.connect(dest);
-
-  // The destination stream contains the same audio as the original.
-  // MediaRecorder will use this; Speech API will use the original.
-  return {
-    sharedStream: dest.stream,
-    cleanup: () => {
-      source.disconnect();
-      ctx.close().catch(() => {});
-    },
-  };
-}
-
 export default function AudioTestPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [question, setQuestion] = useState("");
@@ -72,42 +48,15 @@ export default function AudioTestPage() {
     durationSec: number;
   } | null>(null);
 
-  // Shared mic stream state
-  const originalStreamRef = useRef<MediaStream | null>(null);
-  const sharedStreamRef = useRef<MediaStream | null>(null);
-  const audioCtxCleanupRef = useRef<(() => void) | null>(null);
+  // Ref for auto-scrolling the transcription container
+  const transcriptContainerRef = useRef<HTMLDivElement>(null);
 
-  const {
-    supported: speechSupported,
-    isListening,
-    interimTranscript,
-    finalTranscript,
-    start: startSpeechRecognition,
-    stop: stopSpeechRecognition,
-    reset: resetSpeechTranscript,
-  } = useSpeechRecognition({
-    language: "en-US",
-    onResult: (text, isFinal) => {
-      if (isFinal) {
-        log("SPEECH", `Final: ${text.slice(-80)}`, "success");
-      } else {
-        log("SPEECH", `Interim: ${text.slice(-80)}`, "info");
-      }
-    },
-    onError: (msg) => {
-      log("SPEECH", msg, "warn");
-    },
-  });
-
-  // Continuously sync the live transcript into the question field while recording
-  useEffect(() => {
-    if (isListening) {
-      const liveText = (finalTranscript + " " + interimTranscript).trim();
-      if (liveText) {
-        setQuestion(liveText);
-      }
-    }
-  }, [finalTranscript, interimTranscript, isListening]);
+  // Live transcript managed via ref + force-update counter
+  // This bypasses React state batching issues with the Speech API's onresult
+  const liveTranscriptRef = useRef({ final: "", interim: "" });
+  const [transcriptVersion, setTranscriptVersion] = useState(0);
+  // Force a synchronous-style re-render by bumping a counter
+  const bumpTranscript = useCallback(() => setTranscriptVersion((v) => v + 1), []);
 
   const log = useCallback(
     (tag: string, message: string, type: LogEntry["type"] = "info") => {
@@ -115,6 +64,81 @@ export default function AudioTestPage() {
     },
     [],
   );
+
+  const {
+    supported: speechSupported,
+    isListening,
+    start: startSpeechRecognition,
+    stop: stopSpeechRecognition,
+    reset: resetSpeechTranscript,
+    getRecognitionResults,
+  } = useSpeechRecognition({
+    language: "en-US",
+    onResult: (text, isFinal) => {
+      // The hook's state may not re-render the component during recording
+      // due to React batching. So we write directly to a ref and bump a
+      // counter to force an immediate re-render.
+      if (isFinal) {
+        liveTranscriptRef.current = { final: text, interim: "" };
+        log("SPEECH", `Final: ${text.slice(-80)}`, "success");
+      } else {
+        // For interim, we need to figure out what's final vs interim.
+        // The hook sends accumulatedFinal + interim as the text.
+        // We can extract the final part by checking what we already have.
+        const prevFinal = liveTranscriptRef.current.final;
+        if (text.startsWith(prevFinal) && prevFinal.length > 0) {
+          liveTranscriptRef.current = { final: prevFinal, interim: text.slice(prevFinal.length).trim() };
+        } else {
+          // First interim or reset — treat everything as interim
+          liveTranscriptRef.current = { final: "", interim: text };
+        }
+        log("SPEECH", `Interim: ${text.slice(-80)}`, "info");
+      }
+      bumpTranscript();
+    },
+    onError: (msg) => {
+      log("SPEECH", msg, "warn");
+    },
+  });
+
+  // Poll recognition results directly as a fallback
+  // The onresult event may not fire reliably during recording, so we poll
+  // recognition.results every 200ms to get the latest transcript
+  useEffect(() => {
+    if (!isListening) return;
+    const interval = setInterval(() => {
+      const results = getRecognitionResults();
+      if (!results) return;
+      let accumulated = "";
+      let lastInterim = "";
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        const text = result[0].transcript;
+        if (result.isFinal) {
+          accumulated += text;
+        } else {
+          lastInterim += text;
+        }
+      }
+      const prev = liveTranscriptRef.current;
+      if (accumulated !== prev.final || lastInterim !== prev.interim) {
+        liveTranscriptRef.current = { final: accumulated, interim: lastInterim };
+        bumpTranscript();
+      }
+    }, 200);
+    return () => clearInterval(interval);
+  }, [isListening, getRecognitionResults, bumpTranscript]);
+
+  // Sync live transcript to question while listening
+  useEffect(() => {
+    if (isListening) {
+      const { final: f, interim: i } = liveTranscriptRef.current;
+      const combined = (f + " " + i).trim();
+      if (combined) {
+        setQuestion(combined);
+      }
+    }
+  }, [transcriptVersion, isListening]);
 
   const {
     supported,
@@ -128,26 +152,19 @@ export default function AudioTestPage() {
     },
   });
 
+  // Intercept the hook's onResult to update our ref directly
+  // We wrap the hook's start/stop to inject our ref updates
+  const origOnResultRef = useRef<((text: string, isFinal: boolean) => void) | null>(null);
+
   const handleStart = async () => {
     setAnswer(null);
     setRecordingInfo(null);
     resetSpeechTranscript();
+    liveTranscriptRef.current = { final: "", interim: "" };
+    bumpTranscript();
     log("MIC", "Requesting microphone access…", "info");
 
     try {
-      // Step 1: Get the mic stream
-      const rawStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      originalStreamRef.current = rawStream;
-      log("MIC", "Microphone access granted", "success");
-
-      // Step 2: Create a shared stream via AudioContext
-      const { sharedStream, cleanup } = createSharedMicStream(rawStream);
-      sharedStreamRef.current = sharedStream;
-      audioCtxCleanupRef.current = cleanup;
-      log("MIC", "Shared audio stream created via AudioContext", "info");
-
-      // Step 3: Start the Speech API with the original stream
-      // The Speech API accesses the same physical mic that the AudioContext is reading from
       if (speechSupported) {
         log("SPEECH", "Starting live transcription…", "info");
         startSpeechRecognition();
@@ -155,9 +172,7 @@ export default function AudioTestPage() {
         log("SPEECH", "Speech API not available — Gemini transcription only", "warn");
       }
 
-      // Step 4: Start MediaRecorder with the shared (AudioContext) stream
-      // This ensures both consumers get audio from the same source
-      await startRecording(sharedStream);
+      await startRecording();
       log("MIC", "Recording started — speak now!", "success");
     } catch (err) {
       log("MIC", `Failed to start: ${err}`, "error");
@@ -168,19 +183,11 @@ export default function AudioTestPage() {
   const handleStop = async () => {
     log("MIC", "Stopping recording…", "info");
 
-    // Stop real-time speech recognition
     stopSpeechRecognition();
-    const liveText = (finalTranscript + " " + interimTranscript).trim();
+    const { final: f, interim: i } = liveTranscriptRef.current;
+    const liveText = (f + " " + i).trim();
 
-    // Stop audio recording
     const blob = await stopRecording();
-
-    // Clean up AudioContext and streams
-    audioCtxCleanupRef.current?.();
-    audioCtxCleanupRef.current = null;
-    originalStreamRef.current?.getTracks().forEach((t) => t.stop());
-    originalStreamRef.current = null;
-    sharedStreamRef.current = null;
 
     if (!blob) {
       log("MIC", "No audio captured", "error");
@@ -191,7 +198,6 @@ export default function AudioTestPage() {
     log("AUDIO", `Raw blob: ${(rawSize / 1024).toFixed(1)} KB (${blob.type})`, "info");
     setRecordingInfo({ rawSize, wavSize: 0, durationSec: 0 });
 
-    // If Speech API captured text, use it immediately — no Gemini call needed
     if (liveText.length > 0) {
       log("SPEECH", `Live transcript: ${liveText}`, "success");
       log("TRANSCRIPT", liveText, "success");
@@ -199,7 +205,6 @@ export default function AudioTestPage() {
       return;
     }
 
-    // Fallback: send audio to Gemini for transcription
     log("SPEECH", "No live transcript — falling back to Gemini", "warn");
     const mimeType = blob.type || "audio/webm";
     log("API", "Encoding to base64…", "info");
@@ -259,16 +264,48 @@ export default function AudioTestPage() {
 
   const clearLogs = () => setLogs([]);
 
+  // Auto-scroll transcription container as new words appear
+  useEffect(() => {
+    const container = transcriptContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [transcriptVersion]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      audioCtxCleanupRef.current?.();
-      originalStreamRef.current?.getTracks().forEach((t) => t.stop());
+      stopSpeechRecognition();
     };
   }, []);
 
+  // Read the live transcript from the ref (updated by onResult callback)
+  const { final: finalWords, interim: interimWords } = liveTranscriptRef.current;
+  const allWords = (finalWords + " " + interimWords).trim();
+
   return (
     <>
+      {/* Keyframe animations for word-by-word transcription */}
+      <style>{`
+        @keyframes wordAppear {
+          from {
+            opacity: 0;
+            transform: translateY(4px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes currentWord {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.7;
+          }
+        }
+      `}</style>
       <AppHeader />
       <main className="flex-1 overflow-y-auto p-6 lg:p-8 space-y-6">
         <div>
@@ -310,27 +347,50 @@ export default function AudioTestPage() {
               </>
             )}
           </div>
-          <div className="min-h-[5rem] max-h-[12rem] overflow-y-auto rounded-xl bg-black/30 border border-white/5 p-3">
-            {finalTranscript && (
-              <span className="text-sm text-slate-200 leading-relaxed">
-                {finalTranscript}
-              </span>
-            )}
-            {interimTranscript && (
-              <span className="text-sm text-cyan-300 italic leading-relaxed animate-pulse">
-                {finalTranscript ? " " : ""}{interimTranscript}
-              </span>
-            )}
-            {!finalTranscript && !interimTranscript && question && (
-              <p className="text-sm text-slate-300 leading-relaxed">
-                {question}
-              </p>
-            )}
-            {!finalTranscript && !interimTranscript && !question && (
-              <p className="text-sm text-slate-500">
+          <div
+            ref={transcriptContainerRef}
+            className="min-h-[5rem] max-h-[12rem] overflow-y-auto rounded-xl bg-black/30 border border-white/5 p-4 font-mono text-lg leading-relaxed"
+          >
+            {allWords ? (
+              <>
+                {allWords.split(/\s+/).filter(Boolean).map((word, i) => {
+                  const finalWordCount = finalWords.split(/\s+/).filter(Boolean).length;
+                  const isInterim = i >= finalWordCount;
+                  const totalWords = allWords.split(/\s+/).filter(Boolean).length;
+                  const isLastWord = i === totalWords - 1;
+                  return (
+                    <span
+                      key={`word-${i}-${transcriptVersion}`}
+                      className={`inline-block mr-[0.35em] transition-all duration-150 ${
+                        isInterim
+                          ? isLastWord
+                            ? "text-cyan-300 font-semibold underline underline-offset-4 decoration-cyan-400/50"
+                            : "text-cyan-400/80"
+                          : "text-slate-100"
+                      }`}
+                      style={{
+                        animation: isInterim
+                          ? isLastWord
+                            ? "currentWord 0.8s ease-in-out infinite"
+                            : "wordAppear 0.15s ease-out"
+                          : "wordAppear 0.15s ease-out",
+                      }}
+                    >
+                      {word}
+                    </span>
+                  );
+                })}
+                {isListening && (
+                  <span className="inline-block w-[2px] h-[1em] bg-cyan-400 align-middle ml-0.5 animate-pulse" />
+                )}
+              </>
+            ) : question ? (
+              <p className="text-slate-200">{question}</p>
+            ) : (
+              <p className="text-slate-500 text-sm font-sans">
                 {isListening
                   ? "Listening… start speaking"
-                  : "Click \"Start Recording\" and speak to see real-time transcription here"}
+                  : "Click \"Start Recording\" and speak to see words appear here in real time"}
               </p>
             )}
           </div>

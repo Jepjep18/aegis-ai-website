@@ -188,6 +188,18 @@ export function useSpeechRecognition({
     interimTranscript,
     finalTranscript,
     transcript: finalTranscript + interimTranscript,
+    /** Direct access to the raw recognition results for polling. */
+    getRecognitionResults: () => {
+      const rec = recognitionRef.current;
+      if (!rec) return null;
+      try {
+        // Access the underlying results via the SpeechRecognition instance
+        const results = (rec as unknown as { results: SpeechRecognitionResultList }).results;
+        return results;
+      } catch {
+        return null;
+      }
+    },
     start,
     stop,
     reset,
