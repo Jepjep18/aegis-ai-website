@@ -80,6 +80,7 @@ export function useSpeechRecognition({
     let accumulatedFinal = "";
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
+      console.log("[SpeechRecognition] onresult fired — resultIndex:", event.resultIndex, "results.length:", event.results.length);
       let interim = "";
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -88,10 +89,12 @@ export function useSpeechRecognition({
 
         if (result.isFinal) {
           accumulatedFinal += transcript;
+          console.log("[SpeechRecognition] FINAL:", transcript);
           setFinalTranscript(accumulatedFinal);
           onResultRef.current?.(accumulatedFinal, true);
         } else {
           interim += transcript;
+          console.log("[SpeechRecognition] INTERIM:", transcript);
         }
       }
 
@@ -102,6 +105,7 @@ export function useSpeechRecognition({
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.log("[SpeechRecognition] onerror fired:", event.error, event.message);
       // Expected non-fatal errors — don't spam the console or stop listening.
       if (
         event.error === "no-speech" ||
@@ -126,6 +130,7 @@ export function useSpeechRecognition({
     };
 
     recognition.onend = () => {
+      console.log("[SpeechRecognition] onend fired — auto-restarting:", !!recognitionRef.current);
       // Auto-restart only if we're still supposed to be listening
       // (recognitionRef.current is set to null on fatal errors above)
       if (recognitionRef.current) {
@@ -137,6 +142,7 @@ export function useSpeechRecognition({
       }
     };
 
+    console.log("[SpeechRecognition] Starting recognition — lang:", language);
     recognition.start();
     recognitionRef.current = recognition;
     setIsListening(true);

@@ -13,9 +13,14 @@ function pickMimeType(): string {
 
 interface UseAudioRecorderOptions {
   onError?: (error: string) => void;
+  /** If set, MediaRecorder.start() receives this timeslice in ms.
+   *  onChunk fires with the accumulated blob on each interval. */
+  timeslice?: number;
+  /** Called each time the timeslice fires with all accumulated audio. */
+  onChunk?: (blob: Blob) => void;
 }
 
-export function useAudioRecorder({ onError }: UseAudioRecorderOptions = {}) {
+export function useAudioRecorder({ onError, timeslice, onChunk }: UseAudioRecorderOptions = {}) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -100,6 +105,11 @@ export function useAudioRecorder({ onError }: UseAudioRecorderOptions = {}) {
             chunksRef.current.push(event.data);
             chunkIndex++;
             console.log(`[AudioRecorder] Chunk #${chunkIndex}: ${event.data.size} bytes`);
+            // Fire onChunk with accumulated audio
+            if (timeslice && onChunk) {
+              const accumulated = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+              onChunk(accumulated);
+            }
           }
         };
         recorder.onstart = () => {
@@ -108,7 +118,7 @@ export function useAudioRecorder({ onError }: UseAudioRecorderOptions = {}) {
         recorder.onerror = (event) => {
           console.error("[AudioRecorder] Recorder error:", event);
         };
-        recorder.start();
+        recorder.start(timeslice ? timeslice : undefined);
         mediaRecorderRef.current = recorder;
         setIsRecording(true);
       } catch (err) {
