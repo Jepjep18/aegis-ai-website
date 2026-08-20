@@ -281,40 +281,65 @@ export default function AudioTestPage() {
           </p>
         </div>
 
-        {/* Live transcription display */}
-        {isListening && (
-          <Card className="p-4 border-cyan-400/30 bg-cyan-500/5">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
-              <span className="text-sm font-semibold text-cyan-300">
-                Live Transcription
+        {/* Real-time transcription display — always visible */}
+        <Card className="p-4 border-cyan-400/30 bg-cyan-500/5">
+          <div className="flex items-center gap-2 mb-3">
+            {isListening ? (
+              <>
+                <div className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+                <span className="text-sm font-semibold text-cyan-300">
+                  Live Transcription
+                </span>
+                <Badge variant="default">Listening</Badge>
+              </>
+            ) : question ? (
+              <>
+                <div className="h-2 w-2 rounded-full bg-emerald-400" />
+                <span className="text-sm font-semibold text-emerald-300">
+                  Transcription Complete
+                </span>
+                <Badge variant="success">Done</Badge>
+              </>
+            ) : (
+              <>
+                <div className="h-2 w-2 rounded-full bg-slate-500" />
+                <span className="text-sm font-semibold text-slate-400">
+                  Real-Time Transcription
+                </span>
+                <Badge variant="outline">Idle</Badge>
+              </>
+            )}
+          </div>
+          <div className="min-h-[5rem] max-h-[12rem] overflow-y-auto rounded-xl bg-black/30 border border-white/5 p-3">
+            {finalTranscript && (
+              <span className="text-sm text-slate-200 leading-relaxed">
+                {finalTranscript}
               </span>
-              <Badge variant="default">Listening</Badge>
-            </div>
-            <div className="min-h-[3rem] rounded-xl bg-black/30 border border-white/5 p-3">
-              {finalTranscript && (
-                <span className="text-sm text-slate-200 leading-relaxed">
-                  {finalTranscript}
-                </span>
-              )}
-              {interimTranscript && (
-                <span className="text-sm text-slate-400 italic leading-relaxed">
-                  {finalTranscript ? " " : ""}{interimTranscript}
-                </span>
-              )}
-              {!finalTranscript && !interimTranscript && (
-                <p className="text-sm text-slate-500">
-                  Waiting for speech…
-                </p>
-              )}
-            </div>
-            <p className="text-xs text-slate-500 mt-2">
-              {speechSupported
-                ? "Transcription powered by browser Speech API — updates live as you speak"
-                : "Live transcription not supported in this browser"}
-            </p>
-          </Card>
-        )}
+            )}
+            {interimTranscript && (
+              <span className="text-sm text-cyan-300 italic leading-relaxed animate-pulse">
+                {finalTranscript ? " " : ""}{interimTranscript}
+              </span>
+            )}
+            {!finalTranscript && !interimTranscript && question && (
+              <p className="text-sm text-slate-300 leading-relaxed">
+                {question}
+              </p>
+            )}
+            {!finalTranscript && !interimTranscript && !question && (
+              <p className="text-sm text-slate-500">
+                {isListening
+                  ? "Listening… start speaking"
+                  : "Click \"Start Recording\" and speak to see real-time transcription here"}
+              </p>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 mt-2">
+            {speechSupported
+              ? "Transcription powered by browser Speech API — updates live as you speak"
+              : "Live transcription not supported in this browser"}
+          </p>
+        </Card>
 
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Left: Controls */}
